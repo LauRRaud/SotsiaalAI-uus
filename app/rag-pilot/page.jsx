@@ -10,7 +10,7 @@ export default async function PilotPage() {
   const t = key => serverT(locale, `m4Pilot.${key}`);
   const auth = await requireChatUser();
   if (!auth.ok) return <main style={{ padding: 40 }}><h1>{t('name')}</h1><p>{t('login')}</p><a href="/start">{t('signIn')}</a></main>;
-  try { await readPilotConfig(auth.userId); }
+  try { await readPilotConfig(auth.userId, { purpose: 'read' }); }
   catch { return <main style={{ padding: 40 }}><h1>{t('closed')}</h1><p>{t('denied')}</p></main>; }
   return <PilotClient />;
 }

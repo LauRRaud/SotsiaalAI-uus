@@ -483,7 +483,7 @@ export function useChatConversationState({
               id: nextId++,
               diagnosticRef: typeof msg.diagnosticRef === "string" ? msg.diagnosticRef : null,
               role: normalizedRole,
-              text: typeof msg.text === "string" ? msg.text : "",
+              text: pilotEnabled && msg.messageKey ? _t(msg.messageKey) : typeof msg.text === "string" ? msg.text : "",
               sources:
                 normalizedRole === "ai"
                   ? normalizeSourceList(Array.isArray(msg.displayed_sources) ? msg.displayed_sources : msg.sources ?? [])
@@ -580,7 +580,7 @@ export function useChatConversationState({
       if (convIdRef.current !== id) return;
       setServerHydratedConversationId(id);
     }
-  }, [normalizeSources, setIsCrisis, shouldPreserveLocalMessages, pilotEnabled]);
+  }, [normalizeSources, setIsCrisis, shouldPreserveLocalMessages, pilotEnabled, _t]);
   useEffect(() => {
     if (!convId) return;
     const cancelledRef = {

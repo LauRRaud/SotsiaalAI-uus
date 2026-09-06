@@ -24,3 +24,31 @@ test('pilot intent survives refresh without storing question text and clears onl
   forgetPilotIntent(storage, input.convId, 'other-key'); assert.equal(map.size, 1);
   forgetPilotIntent(storage, input.convId, 'first-key'); assert.equal(map.size, 0);
 });
+
+
+test('F11/F12: legacy suffix compatibility is narrow, versioned, and leaves original artifacts intact', async () => {
+  const { renderAnswer, ANSWER_VERSION } = await import('../lib/rag-v2/pilot/presentation.js');
+  const answer = text => ({ kind: 'grounded', blocks: [{ text, refs: ['S1', 'S3'] }], limitations: [], clarification: null });
+  for (const text of ['Use cite as a word. [S1][S3]', 'Use cite as a word. citeS1S3']) {
+    const raw = answer(text), before = JSON.stringify(raw);
+    assert.equal(renderAnswer(raw), 'Use cite as a word. [S1, S3]');
+    assert.equal(JSON.stringify(raw), before);
+    assert.equal(renderAnswer(raw, ANSWER_VERSION), text + ' [S1, S3]');
+  }
+  for (const text of ['Unknown [S99]', 'Mixed [S99][S1]', 'Ambiguous citeS1UNKNOWN', 'The term [S1] occurs mid-sentence.', 'cite [ordinary] <script>alert(1)</script>']) {
+    assert.equal(renderAnswer(answer(text)), text + ' [S1, S3]');
+  }
+  assert.throws(() => renderAnswer(answer('Text'), 'unrecognized-version'), { code: 'unsupported_answer_version' });
+});
+
+test('F05: mixed historical/completed/failed/unknown turns retain chronological questions and safe status keys', async () => {
+  const { pilotChatMessages } = await import('../lib/chat/m4PilotClientContract.js');
+  const complete = { id: 'a', state: 'completed', question: 'First', answer: { kind: 'grounded', blocks: [{ text: 'Supported [S1]', refs: ['S1'] }], limitations: [], clarification: null }, sources: [] };
+  const turns = [complete, { id: 'b', state: 'answer_rejected', question: 'Second', failureKind: 'references', responseAudit: { draft: 'SECRET INVALID' } },
+    { ...complete, id: 'c', question: 'Third' }, { id: 'd', state: 'unknown', question: 'Fourth' }];
+  const messages = pilotChatMessages(turns, 'conversation');
+  assert.deepEqual(messages.filter(m => m.role === 'user').map(m => m.text), ['First', 'Second', 'Third', 'Fourth']);
+  assert.equal(messages[3].messageKey, 'm4Pilot.referenceFailed'); assert.equal(messages[3].completionStatus, 'FAILED');
+  assert.equal(messages[7].messageKey, 'm4Pilot.unknown');
+  assert.ok(!JSON.stringify(messages).includes('SECRET INVALID'));
+});

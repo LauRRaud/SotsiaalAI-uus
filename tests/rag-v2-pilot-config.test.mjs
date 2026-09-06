@@ -37,6 +37,22 @@ test('pilot switch, per-user grant, expiry, real-model config and approval gates
   const approved = { ...real, approval: { approvedBy: 'synthetic-unit-test', approvedAt: new Date().toISOString(), planHash: digest(real), queryAndSourceEgress: true, dynamicQuestions: false } };
   await fs.writeFile(file, JSON.stringify(approved));
   assert.equal((await readPilotConfig('tester')).mode, 'real'); // Configuration only: no service/transport invocation.
+  const reusePlan = { ...real, budget: { ...real.budget, embeddingAttempts: 0 }, queryReuse: { pilotId: 'prior-pilot', configHash: 'a'.repeat(64),
+    expiresAt: real.expiresAt, entries: [{ turnId: 'prior-turn', queryHash: 'b'.repeat(64), vectorHash: 'c'.repeat(64), embeddingBodyHash: 'd'.repeat(64) }] } };
+  await fs.writeFile(file, JSON.stringify(reusePlan));
+  await assert.rejects(readPilotConfig('tester'), { code: 'pilot_approval_required' });
+  const reuseApproved = { ...reusePlan, approval: { ...approved.approval, planHash: digest(reusePlan) } };
+  await fs.writeFile(file, JSON.stringify(reuseApproved));
+  assert.equal((await readPilotConfig('tester')).budget.embeddingAttempts, 0);
+  await fs.writeFile(file, JSON.stringify({ ...reuseApproved, queryReuse: { ...reusePlan.queryReuse, entries: [{ ...reusePlan.queryReuse.entries[0], vectorHash: 'forged' }] } }));
+  await assert.rejects(readPilotConfig('tester'), { code: 'invalid_query_reuse_plan' });
+  const historicalPlan = { ...real, promptVersion: 'm4-grounded-answer-1', implementationHash: 'historical-immutable-code' };
+  const historical = { ...historicalPlan, approval: { ...approved.approval, planHash: digest(historicalPlan) } };
+  await fs.writeFile(file, JSON.stringify(historical));
+  assert.equal((await readPilotConfig('tester', { purpose: 'read' })).configHash, digest(historical));
+  await assert.rejects(readPilotConfig('tester'), { code: 'implementation_approval_mismatch' });
+  await fs.writeFile(file, JSON.stringify({ ...historical, documents: { forged: 'v2' } }));
+  await assert.rejects(readPilotConfig('tester', { purpose: 'read' }), { code: 'pilot_approval_required' });
   await fs.writeFile(file, JSON.stringify({ ...approved, prices: null }));
   await assert.rejects(readPilotConfig('tester'), { code: 'price_not_configured' });
   await fs.writeFile(file, JSON.stringify({ ...approved, implementationHash: 'old-code' }));

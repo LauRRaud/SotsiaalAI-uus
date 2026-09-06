@@ -44,7 +44,7 @@ export default async function Page({ searchParams }) {
   if (!roomId && process.env.M4_PILOT_ENABLED === '1') {
     const auth = await requireChatUser({ includeSession: true });
     if (auth.ok && !auth.session?.authDegraded) {
-      try { pilotMode = (await readPilotConfig(auth.userId)).mode; } catch {}
+      try { pilotMode = (await readPilotConfig(auth.userId, { purpose: 'read' })).mode; } catch {}
     }
   }
   return <>

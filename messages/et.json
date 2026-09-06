@@ -1,5 +1,8 @@
 {
   "m4Pilot": {
+    "referenceFailed": "Vastust ei avaldatud, sest allikaviidete kontroll ebaõnnestus. Uut vastamiskatset ei tehtud.",
+    "answerFailed": "Vastust ei avaldatud, sest vastuse kontroll või ettevalmistus ebaõnnestus. Uut vastamiskatset ei tehtud.",
+    "unknown": "Teenusekatse tulemus on teadmata. Uut vastamiskatset ei tehtud.",
     "title": "Küsimusest allikani",
     "name": "Sisepiloot",
     "login": "Selle vaate kasutamiseks logi sisse.",

@@ -31,15 +31,16 @@ async function fixture(t, overrides = {}) {
   const packet = { tenant: config.tenant, query_id: randomUUID(), reference_map: { S1: { document_id: 'doc1', document_version_id: 'v1', evidence_id: 'e1', pdf_pages: [2] } },
     evidence: [{ evidence_id: 'e1', source_text: 'Allikatekst', bibliography: { title: 'Testallikas' } }], model_context: { evidence: [{ ref: 'S1', text: 'Allikatekst' }] } };
   const adapters = { preflight: async () => {}, search: async () => packet, canonical: async (c, p, ref) => { if (!c.documents[p.reference_map[ref]?.document_id]) throw Error('forbidden'); } };
-  const call = async ({ stage }) => {
-    calls.push(stage);
+  const bodies = [];
+  const call = async ({ stage, body }) => {
+    calls.push(stage); bodies.push({ stage, body });
     return { value: stage === 'embedding' ? Array.from({ length: 3072 }, (_, i) => i === 0 ? 1 : 0) : { kind: 'partial', blocks: [{ text: 'Allikatekst', factual: true, refs: ['S1'] }], limitations: ['Piiratud'], clarification: null },
       usage: { input: 50, output: stage === 'embedding' ? 0 : 100 }, requestId: `fake-${stage}` };
   };
   const service = new PilotService({ store, readConfig, adapters, call });
   const input = { convId: conv.id, clientTurnKey: randomUUID(), question: 'Üldküsimus', contextMode: 'new' };
   t.after(async () => { await db.user.delete({ where: { id: user.id } }); await db.m4PilotLedger.deleteMany({ where: { id: config.id } }); });
-  return { user, conv, config, store, service, input, calls, packet, adapters, revoke: () => { allowed = false; } };
+  return { user, conv, config, store, service, input, calls, bodies, packet, adapters, revoke: () => { allowed = false; } };
 }
 
 test('real DB: concurrent same-key requests share one turn; repeat and refresh restore; changed input conflicts', async t => {
@@ -183,4 +184,131 @@ test('M4-B: embedding stage cap stops a new question independently of the shared
   await f.service.run(f.user.id, f.input);
   await assert.rejects(f.service.run(f.user.id, { ...f.input, clientTurnKey: randomUUID(), question: 'Teine uus küsimus' }), { code: 'pilot_stage_budget_exhausted' });
   assert.deepEqual(f.calls, ['embedding', 'answer']);
+});
+
+
+test('F01: failed pre-send packet persistence prevents any answer reservation or call', async t => {
+  const f = await fixture(t), save = f.store.save.bind(f.store);
+  f.store.save = async (config, row, state, values) => { if (values.requestAudit) throw Error('synthetic disk failure'); return save(config, row, state, values); };
+  await assert.rejects(f.service.run(f.user.id, f.input));
+  assert.deepEqual(f.calls, ['embedding']);
+  const row = await db.m4PilotTurn.findFirst({ where: { pilotId: f.config.id } });
+  assert.equal(row.state, 'stopped'); assert.equal(row.payload.packet, undefined);
+  assert.equal((await db.m4PilotLedger.findUnique({ where: { id: f.config.id } })).totals.answerAttempts, 0);
+});
+
+test('F02/F04/F06/F09: invalid reference keeps exact bounded audit and terminal state across concurrency and a fresh process', async t => {
+  const f = await fixture(t, { budget: { attempts: 16, embeddingAttempts: 8, answerAttempts: 1, tokens: 200000, nanoUsd: 200000 } }), call = f.service.call;
+  f.service.call = async input => {
+    const result = await call(input);
+    if (input.stage === 'answer') {
+      const before = await db.m4PilotTurn.findFirst({ where: { pilotId: f.config.id } });
+      assert.deepEqual(before.payload.requestAudit.body, input.body);
+      assert.deepEqual(before.payload.packet.model_context, f.packet.model_context);
+      result.value.blocks[0].refs = ['S99'];
+    }
+    return result;
+  };
+  const results = await Promise.allSettled([f.service.run(f.user.id, f.input), f.service.run(f.user.id, f.input)]);
+  assert.ok(results.some(r => r.status === 'rejected' && r.reason.code === 'invalid_answer_reference'));
+  assert.deepEqual(f.calls, ['embedding', 'answer']);
+  const row = await db.m4PilotTurn.findFirst({ where: { pilotId: f.config.id } });
+  assert.equal(row.state, 'answer_rejected');
+  assert.equal(row.payload.responseAudit.validation.path, '$.blocks[0].refs[0]');
+  assert.equal(row.payload.responseAudit.validation.received.text, 'S99');
+  assert.deepEqual(row.payload.responseAudit.validation.allowedReferences, ['S1']);
+  assert.deepEqual(JSON.parse(row.payload.responseAudit.draft.text).blocks[0].refs, ['S99']);
+  assert.equal(row.payload.responseAudit.requestId, 'fake-answer');
+  assert.equal(row.payload.responseAudit.usage.output, 100);
+  assert.equal(row.payload.events.at(-1).state, 'response_received');
+  assert.equal(await db.conversationMessage.count({ where: { conversationId: f.conv.id } }), 0);
+  const restored = await f.service.run(f.user.id, f.input);
+  assert.equal(restored.state, 'answer_rejected'); assert.equal(restored.question, f.input.question);
+  assert.equal(restored.failureKind, 'references');
+  assert.ok(!JSON.stringify(restored).includes('S99')); assert.equal(restored.answer, undefined);
+  const before = await db.m4PilotLedger.findUnique({ where: { id: f.config.id } });
+  assert.equal(before.totals.answerAttempts, 1);
+  await assert.rejects(f.service.run(f.user.id, { ...f.input, clientTurnKey: randomUUID(), question: 'Another question' }), { code: 'pilot_stage_budget_exhausted' });
+  const child = execFileSync(process.execPath, ['--import', './scripts/register-node-source-loader.mjs', '--input-type=module', '-e', `
+    import { PrismaClient } from './generated/prisma/client.ts';
+    import { PrismaPg } from '@prisma/adapter-pg';
+    import { PilotStore } from './lib/rag-v2/pilot/store.js';
+    import { PilotService } from './lib/rag-v2/pilot/service.js';
+    globalThis.fetch = () => { throw Error('network forbidden'); };
+    const data = JSON.parse(process.env.M4_RESTART_CASE);
+    const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.M4_TEST_DATABASE_URL }), log: [] });
+    try {
+      const service = new PilotService({ store: new PilotStore(db), readConfig: async () => data.config, adapters: {}, call: async () => { throw Error('unexpected retry'); } });
+      console.log(JSON.stringify(await service.run(data.userId, data.input)));
+    } finally { await db.$disconnect(); }
+  `], { encoding: 'utf8', windowsHide: true, env: { ...process.env, M4_RESTART_CASE: JSON.stringify({ config: f.config, userId: f.user.id, input: f.input }) } });
+  assert.equal(JSON.parse(child.trim()).state, 'answer_rejected');
+  assert.deepEqual((await db.m4PilotLedger.findUnique({ where: { id: f.config.id } })).totals, before.totals);
+});
+
+test('F08: failed audit expires with its turn, cannot be restored after revocation, and cannot be recreated late', async t => {
+  const f = await fixture(t), call = f.service.call;
+  f.service.call = async input => { const result = await call(input); if (input.stage === 'answer') result.value.blocks[0].refs = ['S99']; return result; };
+  await assert.rejects(f.service.run(f.user.id, f.input));
+  const row = await db.m4PilotTurn.findFirst({ where: { pilotId: f.config.id } });
+  assert.ok(row.payload.responseAudit.draft);
+  f.revoke(); await assert.rejects(f.service.restore(row), { code: 'revoked' });
+  await db.m4PilotTurn.update({ where: { id: row.id }, data: { expiresAt: new Date(0) } });
+  await f.store.purge();
+  assert.equal(await db.m4PilotTurn.findUnique({ where: { id: row.id } }), null);
+  await assert.rejects(f.store.save(f.config, row, 'answer_rejected', { responseAudit: row.payload.responseAudit }), { code: 'turn_expired' });
+  assert.equal((await db.m4PilotLedger.findUnique({ where: { id: f.config.id } })).totals.answerAttempts, 1);
+});
+
+test('F03/F08: source permission lost after response blocks publication while retaining the protected failed audit', async t => {
+  const f = await fixture(t), call = f.service.call;
+  f.service.call = async input => { const result = await call(input); if (input.stage === 'answer') f.config.documents = {}; return result; };
+  await assert.rejects(f.service.run(f.user.id, f.input));
+  const row = await db.m4PilotTurn.findFirst({ where: { pilotId: f.config.id } });
+  assert.equal(row.state, 'answer_rejected'); assert.ok(row.payload.responseAudit.draft);
+  assert.equal(await db.conversationMessage.count({ where: { conversationId: f.conv.id } }), 0);
+  assert.equal((await f.service.restore(row)).answer, undefined);
+});
+
+
+test('F16: a separately approved regression reuses only its pinned live query vector and never resets the original ledger', async t => {
+  const f = await fixture(t);
+  await f.service.run(f.user.id, f.input);
+  const original = await db.m4PilotTurn.findFirst({ where: { pilotId: f.config.id } });
+  const oldLedger = await db.m4PilotLedger.findUnique({ where: { id: f.config.id } });
+  const entry = { turnId: original.id, queryHash: original.payload.query.hash, vectorHash: digest(original.payload.vector),
+    embeddingBodyHash: original.payload.events.find(e => e.stage === 'embedding').bodyHash };
+  const config = { ...f.config, id: randomUUID(), configHash: randomUUID(), budget: { ...f.config.budget, embeddingAttempts: 0 },
+    queryReuse: { pilotId: f.config.id, configHash: f.config.configHash, expiresAt: original.expiresAt.toISOString(), entries: [entry] } };
+  t.after(() => db.m4PilotLedger.deleteMany({ where: { id: config.id } }));
+  const service = new PilotService({ ...f.service, readConfig: async () => config });
+  const repeated = { ...f.input, clientTurnKey: randomUUID() };
+  const restored = await service.run(f.user.id, repeated);
+  assert.equal(restored.state, 'completed'); assert.deepEqual(f.calls, ['embedding', 'answer', 'answer']);
+  const row = await db.m4PilotTurn.findFirst({ where: { pilotId: config.id } });
+  assert.equal(row.payload.queryReuse.turnId, original.id);
+  assert.equal(row.payload.events.length, 1); assert.equal(row.payload.events[0].stage, 'answer');
+  assert.ok(row.expiresAt <= original.expiresAt);
+  assert.equal((await db.m4PilotLedger.findUnique({ where: { id: config.id } })).totals.embeddingAttempts, 0);
+  assert.deepEqual((await db.m4PilotLedger.findUnique({ where: { id: f.config.id } })).totals, oldLedger.totals);
+  const query = original.payload.query;
+  assert.equal(await f.store.reuse(config, 'other-user', query), null);
+  assert.equal(await f.store.reuse({ ...config, tenant: 'foreign' }, f.user.id, query), null);
+  await assert.rejects(f.store.reuse({ ...config, queryReuse: { ...config.queryReuse, entries: [{ ...entry, vectorHash: 'bad' }] } }, f.user.id, query), { code: 'query_reuse_integrity_failed' });
+  await db.conversation.update({ where: { id: f.conv.id }, data: { archivedAt: new Date() } });
+  assert.equal(await f.store.reuse(config, f.user.id, query), null);
+});
+
+
+test('F07: an unknown answer outcome retains its pre-send packet and cannot become a known validation failure or retry', async t => {
+  const f = await fixture(t), call = f.service.call;
+  f.service.call = async input => { if (input.stage === 'answer') { f.calls.push('answer_unknown'); throw Error('connection lost'); } return call(input); };
+  await assert.rejects(f.service.run(f.user.id, f.input));
+  const row = await db.m4PilotTurn.findFirst({ where: { pilotId: f.config.id } });
+  assert.equal(row.state, 'unknown'); assert.ok(row.payload.packet.model_context); assert.ok(row.payload.requestAudit.body);
+  assert.equal(row.payload.events.at(-1).state, 'sent_unknown'); assert.equal(row.payload.responseAudit, undefined);
+  const totals = (await db.m4PilotLedger.findUnique({ where: { id: f.config.id } })).totals;
+  assert.equal((await f.service.run(f.user.id, f.input)).state, 'unknown');
+  assert.deepEqual(f.calls, ['embedding', 'answer_unknown']);
+  assert.deepEqual((await db.m4PilotLedger.findUnique({ where: { id: f.config.id } })).totals, totals);
 });

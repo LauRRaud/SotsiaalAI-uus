@@ -1,5 +1,8 @@
 {
   "m4Pilot": {
+    "referenceFailed": "The answer was not published because source reference validation failed. No new answer attempt was made.",
+    "answerFailed": "The answer was not published because validation or preparation failed. No new answer attempt was made.",
+    "unknown": "The service attempt outcome is unknown. No new answer attempt was made.",
     "title": "From question to source",
     "name": "Internal pilot",
     "login": "Sign in to use this view.",

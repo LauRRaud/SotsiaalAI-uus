@@ -1728,7 +1728,7 @@ export function useChatStream(config) {
             throw createLocalizedError(readApiErrorKey(data) || "chat.error.no_response");
           }
 
-          const replyText = (data?.answer ?? data?.reply) || tr("chat.error.no_answer");
+          const replyText = (data?.answer ?? data?.reply) || (cfg.pilotEnabled && data?.messageKey ? tr(data.messageKey) : tr("chat.error.no_answer"));
           const normalize = cfg.normalizeSources || defaultNormalizeSources;
           const normSources = normalize(Array.isArray(data?.displayed_sources) ? data.displayed_sources : data?.sources);
           const attachments = normalizeAttachments(data?.attachments);
@@ -1749,7 +1749,7 @@ export function useChatStream(config) {
             cards,
             workflow,
             isStreaming: false,
-            completionStatus: "COMPLETED"
+            completionStatus: cfg.pilotEnabled ? data?.completionStatus || "COMPLETED" : "COMPLETED"
           }));
 
           // Sama reegel mis voo rajal: lahendatud kavatsus vabastab võtme (SOL-CHAT-03).
