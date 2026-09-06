@@ -6,7 +6,7 @@ import { embeddingConfig } from '../lib/rag-v2/search/embedding.js';
 
 const config = { mode: 'real', model: 'gpt-5.6-luna', accountProject: 'proj_test', timeoutMs: 100, maxOutputTokens: 1000, reasoning: 'low',
   embedding: embeddingConfig({ embedding_mode: 'real', provider: 'openai', model: 'text-embedding-3-large', dimensions: 3072, endpoint: 'https://api.openai.com/v1/embeddings' }) };
-const answer = { kind: 'unsupported', blocks: [{ text: 'See materjal ei anna hinda.', factual: false, refs: [] }], limitations: ['Hind puudub'], clarification: null };
+const answer = { kind: 'unsupported', blocks: [], limitations: ['The supplied excerpts do not establish a price.'], clarification: null };
 const good = { model: config.model, status: 'completed', output: [{ type: 'reasoning' }, { type: 'message', content: [{ type: 'output_text', text: JSON.stringify(answer) }] }],
   usage: { input_tokens: 100, output_tokens: 50, output_tokens_details: { reasoning_tokens: 20 } } };
 test('Responses adapter sends exact endpoint, project, no store/tools/temperature, and retains reasoning usage', async () => {

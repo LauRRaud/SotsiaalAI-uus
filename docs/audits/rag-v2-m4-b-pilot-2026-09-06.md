@@ -202,3 +202,58 @@ Refresh taastas kõik 8 küsimust, 6 vastust ja 2 veapööret õiges järjekorra
 - Kinnitatud loa lõpp jääb **07.09.2026 08:00 UTC / 11:00 Eesti aja järgi**. Algsete vektorite ja tõendite eluiga ei pikendatud; mõlema jooksu katselaed on täis. Avalik vastamine jäi suletuks.
 
 **Järgmine põhjendatud tööots on tõendipiirangu ja faktiploki väljundilepingu korrastamine ning allika rolli/ulatuse täpsus.** Kahe salvestatud ebaõnnestunud mustandi abil saab teha kohaliku regressiooni: puuduvat tõendit kirjeldav piirang peab mahtuma selleks ette nähtud väljundiossa, säilitades viite- ja õiguskontrolli. Alles on ka kõrvalised piirangud, õppefaktilehe liiga üldine järgmine samm ning eesmärgi toimununa sõnastamine. Selle tulemuse põhjal ei alustata automaatselt uut samade kaheksa küsimuse häälestusringi ega kuulutata M4-d vastu võetuks. Päris jätkuvestlus, kasutaja parandus ja inimeste eristamine jäävad eraldi otsustatavaks katseks. M2/M2.3 kinnitused ja seitse lahtist juhtumit säilivad.
+
+
+## 06.09.2026 kohalik väljundileping v3 — allikaväide ja tõendusmaterjali piir
+
+**See on uus kohalik teostus, mitte uus pärisjooks.** Eelnev `m4-regression-20260906-1` jääb samaks 6 avaldatud / 2 peatatud vastusega jooksuks. Selle vooru välismudelikutseid, commit'e, push'e ja deploy'sid on **0**. Teise akna pooleliolevad quality-gate'i muudatused ning muud omaniku failid säilitati.
+
+### Muudatus ja versioonipiir
+
+Rakenduskood muutus ainult `lib/rag-v2/pilot/contracts.js`, `presentation.js` ja `config.js` failides. Vastuseleping on **`m4-text-refs-3`**, prompt **`m4-grounded-answer-3`**; küsimuseversioon ja otsinguprofiil ei muutu. Sama andmekuju säilib: `kind`, `blocks`, `limitations`, `clarification`. Iga uue versiooni allikaplokk nõuab `factual=true` ja vähemalt ühte selle pöörde lubatud viidet. Nõue on nii provider'ile antavas skeemis (`enum: [true]`, `refs.minItems: 1`) kui serverivalideerijas. Tundmatu viide, vale roll, tühi või liiga pikk sisu ning toored tekstiviited tõrjutakse edasi.
+
+| Uue versiooni kind | Nõutav sisu |
+| --- | --- |
+| `grounded` | Vähemalt üks viidatud allikaplokk. Mudeli hinnang, mitte serveri tõendatud täielikkus. |
+| `partial` | Vähemalt üks viidatud allikaplokk ning mittetühi piirang või vajalik täpsustusküsimus. |
+| `clarification` | Mittetühi täpsustusküsimus; `blocks=[]` on lubatud. |
+| `unsupported` | `blocks=[]` ning vähemalt üks mittetühi materjalipiiri selgitus; küsimus võib lisanduda. |
+
+Tühja nähtavat vastust ei lubata. Viideteta allikaväidet ei muudeta automaatselt `factual=false` plokiks ega piiranguks, sellele ei lisata vaikimisi viidet ja seda ei eemaldata ülejäänu avaldamiseks. Renderdaja ühendab endiselt sama kolme väljundiosa; eraldi uut vestlusmudelit või HTTP rada ei lisatud.
+
+Väljade seosed on kirjeldatud skeemi tähenduslikes kirjeldustes ja promptis ning jõustatud serveris. OpenAI Structured Outputs ei toeta juurtaseme `anyOf`-i ega `if/then/else` risttingimusi; seetõttu jääb olemasolev lame andmekuju ning `kind`/sisu kooskõla kontrollitakse serveris. Skeemi toetatud kohalikud tüübi-, loendi- ja tekstipiirangud kontrolliti olemasoleva Ajv-ga. Serveri senised UTF-16 pikkusepiirid säilivad. See ei ole uue skeemi pärismudeliga vastuvõtu tõend. [Ametlik skeemijuhis](https://developers.openai.com/api/docs/guides/structured-outputs).
+
+**Versioonid 1 ja 2 säilitavad oma senise tähenduse.** Versioon 1 kasutab endiselt kitsast ajalooliste lõpuviidete esitusühilduvust; versioon 2 keelab tekstiviited ja lubab oma vana `factual=false` kuju. Nende vanade versioonide kõigi `kind`-harude senine vähemalt ühe ploki nõue jääb ajaloolises kontrollis alles. Uued tühja plokiloendi harud ja kõigi plokkide `factual=true` nõue rakenduvad ainult versioonile 3. Lugemisloa promptiversioonide loend säilitab eraldi versioonid 1, 2 ja 3; uut saatmist vana heakskiiduga ei lubata.
+
+Prompt eristab allika enda väidet (näiteks faktileht ei nimeta hinda) vastaja ebapiisavast tõendist. Piirang käib selles vastuses kasutatud väljavõtete kohta, mitte kogu artikli, andmebaasi või maailma kohta. Lisatud on allika rolli, aja ja täpse adressaadi säilitamine, eesmärgi/toimunud sündmuse eristus, sama ploki sündmusväite sidumine sündmuse allikaga ning õppeprotseduuri selge omistamine õppenäitele. Ükski kaheksa küsimuse nimi, oodatud vastus ega lehekülg ei läinud runtime'i erandiks.
+
+### Pärismustandite muutmata taasesitus ja eraldi oodatud näidised
+
+Enne muutmist loeti mõlema peatunud katse kõik plokid koos tegeliku paketiga. Neljanda mustandi esimene plokk on eetikanõukoja allikapõhine kokkuvõte, teine on liiga absoluutselt sõnastatud materjalipiir ning kolmas segab viidatud sünteesi ja pakkumist, olles vana mudeli väljundis `factual=false`. Seitsmenda mustandi allika žanr ja analüütiline roll on toetatud, kuid laiemat õiguslikku järeldust tuleb kitsendada; kolmas plokk on antud tõendi piirang. Ainult tühja viite parandamine ei kinnitaks kogu ülejäänud teksti õigsust.
+
+Muutmata algmustandid annavad versiooniga 2 endiselt täpselt **`$.blocks[1].refs`** ja **`$.blocks[2].refs`** vea. Ka uue versiooniga jäävad samad toormustandid vigaseks; automaatset parandust ei toimu. Ajalooline seis jääb `answer_rejected`. Seitse v1 ja kuus v2 avaldatud vastust loeti oma algversiooniga; algsete failide baidiräsid säilisid.
+
+Eraldi **käsitsi koostatud** oodatud v3-näidised kasutavad samade kahe paketi tegelikke viiteid:
+
+- küsimuse 4 osavastus kirjeldab S1/S3 toel turvalisuse, õiguste ja proportsionaalsuse seost ning S1–S3 toel töötaja toetamise nõudeid; piirang ütleb, et kasutatud väljavõtted ei anna piisavat alust ministeeriumi põhikäsitluse võrdlemiseks. Puuduvat käsitlust ei mõelda välja;
+- küsimuse 7 osavastus kirjeldab S1 toel artikli analüütilist rolli ja S5 toel autori väärtuspõhist käsitlust; piirang ütleb, et need väljavõtted ei võimalda kinnitada soovituste õiguslikku siduvust kõigi Eesti valdade teenuseotsustele.
+
+Need näidised läbivad uue tehnilise lepingu ja kuvavad toetatud osa koos piiranguga. Need **ei ole Luna parandatud algvastused** ega muuda ajaloolisi pöördeid. [Käsitsi märgistatud privaatnäidised](../../tmp/rag-v2-m4-answer-contract-v3/expected-private-fixtures.json) ja [taasesituse audit](../../tmp/rag-v2-m4-answer-contract-v3/replay-results.json) seovad sisendfaili/mustandi räsi, paketi räsi, tegeliku algversiooni, kontrolliversiooni ja tulemuse. Eluiga ega juurdepääsuluba ei pikendatud.
+
+`limitations` ei anna semantilist heakskiitu suvalisele lausele. Näiteks valitud väljavõtete põhjal hinna kinnitamata jätmine on lubatud materjalipiir; „kõik omavalitsused pakuvad teenust tasuta” on tõendamata üldväide. Mõlemad võivad läbida stringi vormikontrolli, kuid teise lükkab tagasi sisuline hinnang. Samuti ei võrdu ebapiisav kommentaaripakett terve artikli sisupuudusega ega puuduv õiguslik tõend väitega, et õiguslikku alust ei eksisteeri. [Kolm eraldi sisulist vastandust](../../tmp/rag-v2-m4-answer-contract-v3/semantic-scope-examples.json) märgivad vormikontrolli ja käsitsi tehtud semantilise otsuse eraldi; ammendavat keeletõefiltrit ei väideta.
+
+### Kohalikud kontrollid ja brauser
+
+**PASS 47 / FAIL 0 / SKIP 0** käivitatud eri testide kohta: 21 tuuma/v3/provider'i/esituse testi, 21 päris kohaliku DB püsistustesti, üks konfiguratsioonitest, kaks ajaloolise taasesituse testi, üks olemasolev kanoonilise viite sihttest ning üks tegeliku kohaliku HTTP raja test. Nõuete tabeli ridu ei loetud testideks. Kontrollid katavad ka versiooni 2 taastamise, viiteta/`factual=false` väite tõrje, tühjad ja vastuolulised kind-harud, õigused, aegumise, kordusvõtme, paketisalvestuse tõrke, muutumatu kulureservi, ET/EN/RU päringukeha ja teksti ning võõra allika/versiooni tõrje.
+
+Tegelikus localhosti tavavestluses, eraldatud `sotsiaal_ai_m4_dev` DB ja fikseeritud testtranspordiga, kontrolliti järjekorda **EN partial → ET clarification → RU unsupported → sünteetiline viiteviga → ET grounded**. Esimene vastus kuvas viidatud põhisisu koos eraldi piiranguga. Täpsustusküsimus ning toeta materjalipiir avaldusid `blocks=[]` kujul, ilma kunstliku tekstiviiteta. Vigane faktiplokk jäi avaldamata; täieliku toe näidis säilitas kasuliku viidatud vastuse.
+
+Refresh ja 390 × 844 mobiili allikavaatelt naasmine taastasid kõik viis pööret õiges järjekorras. Mobiilis olid täpsustusküsimus ja venekeelne piirang terviklikult loetavad; dokumendi laius oli 390 px. Osavastuse S1 avas tegeliku kanoonilise artiklikatkendi PDF lk 2–3. Pärast lugemisi ja sama võtme paralleelseid HTTP korduspäringuid oli endiselt 5 testvastuse ja 5 test-embedding'u sündmust; uusi teenusekatseid lugemisest 0, välismudelikutseid 0, kulu 0 USD. Privaatne vigane mustand ei jõudnud DOM-i ega avalikku HTTP vastusesse. [Brauseri/DB tõend](../../tmp/rag-v2-m4-answer-contract-v3/browser-checks.json), [HTTP tõend](../../tmp/rag-v2-m4-answer-contract-v3/http-checks.json).
+
+Muudetud koodi ja sihttestide eslint **PASS**; `npm run build` koos `i18n:check`-iga **PASS** (23,3 s kompileerimine, exit 0); `git diff --check` **PASS**. Prisma skeemi ega migratsioone ei muudetud. Build kontrollis olemasolevat tööpuud, sealhulgas säilitatud teise akna pooleliolevaid muudatusi; selle vooru muudatused on eristatud failidiffis. Serverisse midagi ei saadetud.
+
+### Järgmise päriskatse ettevalmistatud ulatus
+
+[Ülevaatuseks mõeldud nelja juhtumi ulatus](../../tmp/rag-v2-m4-answer-contract-v3/next-real-scope.json) katab kaks peatunud ET juhtumit, EN täieliku toe kontrolli ja RU puuduliku toe/täpsustuse kontrolli. See ei ole käivitatav plaan: heakskiit, kvoot, kogukulupiir ja uus kehtivusaeg on määramata ning kuuluvad järgmisse eraldi otsusesse. Senised katselaed on täis; vanade vektorite võimalik taaskasutus eeldab jätkuvalt kehtivat luba ja ei pikenda nende eluiga. Uut kaheksa küsimuse häälestusringi ei alustatud; teadaolevad küsimused ja nende järgi häälestatud parafraasid ei ole puutumatu kontroll.
+
+Kohalik tulemus tõendab väljenduse, vormikontrolli, püsistuse ja taastamise rada. **Luna õige rollivalik, uue skeemi tegelik järgimine ja väidete semantiline tugi jäävad päriskatsega kontrollida. M4 ei ole tervikuna vastu võetud.** Otsinguprofiil, korpus, tükeldus, põlvkond, embedding-ruum, mudel, M2/M2.3 kinnitused ning seitse lahtist juhtumit säilivad.

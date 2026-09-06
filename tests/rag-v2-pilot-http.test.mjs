@@ -11,7 +11,9 @@ if (base && (!['localhost', '127.0.0.1'].includes(database.hostname) || database
 
 test('F03/F05/F09/F16: real local HTTP authorization and terminal retry preserve messages and counters', { skip: !base }, async () => {
   const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: database.href }), log: [] });
-  const convId = 'm4-followup-browser-20260906-1';
+  const fixture = process.env.M4_HTTP_FIXTURE ? JSON.parse(await fs.readFile(process.env.M4_HTTP_FIXTURE, 'utf8'))
+    : { convId: 'm4-followup-browser-20260906-1', pilotId: 'm4-followup-local-20260906-1', expectedAttempts: 4, failureIndex: 1 };
+  const { convId, pilotId, expectedAttempts, failureIndex } = fixture;
   const userId = 'm4-local-tester-20260906';
   const report = [];
   function client() {
@@ -37,8 +39,8 @@ test('F03/F05/F09/F16: real local HTTP authorization and terminal retry preserve
     const denied = await login('m4-other@example.invalid');
     assert.equal((await denied('/api/chat/pilot?convId=' + convId)).status, 403); report.push('other-admin:403');
     const request = await login('m4-tester@example.invalid');
-    const before = await db.m4PilotLedger.findUnique({ where: { id: 'm4-followup-local-20260906-1' } });
-    assert.equal(before.totals.answerAttempts, 4);
+    const before = await db.m4PilotLedger.findUnique({ where: { id: pilotId } });
+    assert.equal(before.totals.answerAttempts, expectedAttempts);
     const row = await db.m4PilotTurn.findFirst({ where: { pilotId: before.id, state: 'answer_rejected' }, include: { chatTurn: true } });
     const input = { convId, clientTurnKey: row.chatTurn.clientTurnKey, question: row.payload.question, contextMode: row.payload.contextMode, language: row.payload.query.language };
     const headers = { 'content-type': 'application/json', 'x-rag-pilot': '1', 'x-rag-pilot-format': 'chat' };
@@ -49,10 +51,10 @@ test('F03/F05/F09/F16: real local HTTP authorization and terminal retry preserve
     const repeat = await Promise.all([1,2].map(() => request('/api/chat', { method: 'POST', headers, body: JSON.stringify(input) }).then(async r => ({ status:r.status, body:await r.json() }))));
     for (const r of repeat) { assert.equal(r.status,200); assert.equal(r.body.pilotState,'answer_rejected'); assert.equal(r.body.messageKey,'m4Pilot.referenceFailed'); }
     const response = await request('/api/chat/pilot?format=chat&convId=' + convId); assert.match(response.headers.get('cache-control'), /no-store/);
-    const data = await response.json(); assert.equal(data.messages.length,8);
-    assert.equal(data.messages[3].messageKey,'m4Pilot.referenceFailed');
+    const data = await response.json(); assert.equal(data.messages.length,expectedAttempts * 2);
+    assert.equal(data.messages[failureIndex * 2 + 1].messageKey,'m4Pilot.referenceFailed');
     const publicJson = JSON.stringify(data);
-    for (const privateText of ['PRIVATE_INVALID_DRAFT','PRIVATE_DIAGNOSTICS','requestAudit','responseAudit','S99']) assert.ok(!publicJson.includes(privateText));
+    for (const privateText of ['PRIVATE_INVALID_DRAFT','PRIVATE_V3_INVALID_DRAFT','PRIVATE_DIAGNOSTICS','requestAudit','responseAudit','S99']) assert.ok(!publicJson.includes(privateText));
     const source = new URL(data.messages[1].sources[0].url,base);
     const query = source.search;
     assert.equal((await request('/api/chat/pilot'+query)).status,200);
@@ -63,9 +65,9 @@ test('F03/F05/F09/F16: real local HTTP authorization and terminal retry preserve
     try { assert.equal((await request('/api/chat/pilot?convId='+foreign.id)).status,403); }
     finally { await db.conversation.delete({where:{id:foreign.id}}); }
     assert.deepEqual((await db.m4PilotLedger.findUnique({ where: { id: before.id } })).totals,before.totals);
-    assert.equal(await db.m4PilotTurn.count({where:{pilotId:before.id}}),4);
-    assert.equal(await db.chatTurn.count({where:{userId,conversationId:convId}}),4);
-    report.push('forged-fields:400','cross-origin:403','failed-key-parallel:200/same-terminal','refresh:8-ordered-messages','private-draft:hidden','source-owner:200','source-other:403','source-invalid:403','source-failed-turn:404','foreign-conversation:403','ledger:unchanged');
+    assert.equal(await db.m4PilotTurn.count({where:{pilotId:before.id}}),expectedAttempts);
+    assert.equal(await db.chatTurn.count({where:{userId,conversationId:convId}}),expectedAttempts);
+    report.push('forged-fields:400','cross-origin:403','failed-key-parallel:200/same-terminal','refresh:' + (expectedAttempts * 2) + '-ordered-messages','private-draft:hidden','source-owner:200','source-other:403','source-invalid:403','source-failed-turn:404','foreign-conversation:403','ledger:unchanged');
     if(process.env.M4_HTTP_OUTPUT) await fs.writeFile(process.env.M4_HTTP_OUTPUT,JSON.stringify({checks:report,pass:report.length,fail:0,skip:0,newModelCalls:0,totals:before.totals},null,2),{flag:'wx'});
   } finally { await db.$disconnect(); }
 });

@@ -51,6 +51,11 @@ test('pilot switch, per-user grant, expiry, real-model config and approval gates
   await fs.writeFile(file, JSON.stringify(historical));
   assert.equal((await readPilotConfig('tester', { purpose: 'read' })).configHash, digest(historical));
   await assert.rejects(readPilotConfig('tester'), { code: 'implementation_approval_mismatch' });
+  const historicalV2Plan = { ...historicalPlan, promptVersion: 'm4-grounded-answer-2' };
+  const historicalV2 = { ...historicalV2Plan, approval: { ...approved.approval, planHash: digest(historicalV2Plan) } };
+  await fs.writeFile(file, JSON.stringify(historicalV2));
+  assert.equal((await readPilotConfig('tester', { purpose: 'read' })).configHash, digest(historicalV2));
+  await assert.rejects(readPilotConfig('tester'), { code: 'implementation_approval_mismatch' });
   await fs.writeFile(file, JSON.stringify({ ...historical, documents: { forged: 'v2' } }));
   await assert.rejects(readPilotConfig('tester', { purpose: 'read' }), { code: 'pilot_approval_required' });
   await fs.writeFile(file, JSON.stringify({ ...approved, prices: null }));

@@ -6,7 +6,7 @@ import { PrismaClient } from '../generated/prisma/client.ts';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PilotStore } from '../lib/rag-v2/pilot/store.js';
 import { PilotService } from '../lib/rag-v2/pilot/service.js';
-import { digest } from '../lib/rag-v2/pilot/contracts.js';
+import { digest, buildQuestion } from '../lib/rag-v2/pilot/contracts.js';
 import { embeddingConfig } from '../lib/rag-v2/search/embedding.js';
 import { retrievalProfile } from '../lib/rag-v2/search/profiles.js';
 
@@ -311,4 +311,36 @@ test('F07: an unknown answer outcome retains its pre-send packet and cannot beco
   assert.equal((await f.service.run(f.user.id, f.input)).state, 'unknown');
   assert.deepEqual(f.calls, ['embedding', 'answer_unknown']);
   assert.deepEqual((await db.m4PilotLedger.findUnique({ where: { id: f.config.id } })).totals, totals);
+});
+
+test('v3 real DB: citation-free clarification and unsupported answers publish and restore without extra attempts', async t => {
+  const f = await fixture(t), call = f.service.call;
+  const answers = [
+    { kind: 'partial', blocks: [{ text: 'Source-backed part.', factual: true, refs: ['S1'] }], limitations: ['These excerpts do not support the whole comparison.'], clarification: null },
+    { kind: 'clarification', blocks: [], limitations: [], clarification: 'Which municipality do you mean?' },
+    { kind: 'unsupported', blocks: [], limitations: ['These excerpts do not establish a price.'], clarification: null },
+  ];
+  for (const [index, answer] of answers.entries()) {
+    f.service.call = async input => { const result = await call(input); if (input.stage === 'answer') result.value = answer; return result; };
+    const input = { ...f.input, question: 'Synthetic branch ' + index, clientTurnKey: randomUUID() };
+    const result = await f.service.run(f.user.id, input);
+    assert.equal(result.state, 'completed'); assert.equal(result.answerVersion, 'm4-text-refs-3');
+    assert.deepEqual(result.answer, answer);
+    const calls = f.calls.length;
+    assert.deepEqual((await f.service.run(f.user.id, input)).answer, answer);
+    assert.equal(f.calls.length, calls);
+    if (!answer.blocks.length) assert.ok(result.sources.every(source => source.used === false));
+  }
+  assert.equal(await db.conversationMessage.count({ where: { conversationId: f.conv.id } }), 6);
+});
+
+test('v2 real DB: recovery of a synthetic historical nonfactual answer keeps its original contract', async t => {
+  const f = await fixture(t);
+  const claimed = await f.store.claim(f.config, f.user.id, f.input);
+  const answer = { kind: 'unsupported', blocks: [{ text: 'Historical v2 response.', factual: false, refs: [] }], limitations: [], clarification: null };
+  const row = await f.store.save(f.config, claimed.row, 'needs_recovery', { answer, answerVersion: 'm4-text-refs-2', packet: f.packet,
+    query: { ...buildQuestion({ question: f.input.question, contextMode: f.input.contextMode }), language: 'et' } });
+  const result = await f.service.recover(row);
+  assert.equal(result.state, 'completed'); assert.equal(result.answerVersion, 'm4-text-refs-2');
+  assert.deepEqual(result.answer, answer); assert.deepEqual(f.calls, []);
 });
