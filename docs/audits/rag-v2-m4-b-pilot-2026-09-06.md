@@ -138,3 +138,67 @@ Lõpliku koodipuu muudetud failide eslint **PASS**. `npm run build` koos sisemis
 - Hinnatakse eraldi keelt, põhivastust ja täielikkust, põhjendamata ulatust, tehnilist viidet, semantilist tuge, viitekuju, avaldamist, refresh'i, usage'it ja aega. Üks juhuslik kordus ei tõenda üldist kvaliteeti.
 
 Plaan on `draft_not_authorized` ja `approval=null`. Puudu on omaniku **eraldi materjali-, mudeli/projekti-, katsetaja-, ajapiiri- ja 0,16 USD kogukulu kinnitus**, samuti luba push'iks/deploy'ks. Serverisse viimise järel tuleb kontrollida ülevaadatud failisisu vastavust ning serveri platvormipõhist teostusräsi; plaani muutuse korral ei saadeta midagi enne selle ülevaatust. Kohaliku plaani räsi ilma heakskiiduta: `ef36d561c9a7ba17f5a91b015d5a9c7ed34e4addd8892b89907cadeed03d5015`; teostusräsi: `8602770843531703820da1ff8e182f3e974c75ec53bfabbf6d9b6603808d31dd`. Algse piloodi ledger jääb 8/8 ja seda ei lähtestata.
+
+
+## 06.09.2026 parandatud M4-B pärisregressioon — enne ja pärast
+
+**Üks lubatud kaheksa küsimuse jooks on lõpetatud: 6 vastust avaldati, 2 peatati viitekontrollis.** Ingliskeelsed küsimused said nüüd ingliskeelsed vastused, avaldatud vastuste toored/dubleeritud viited kadusid ning mõlemad päriselt tekkinud veapöörded taastusid refresh'il. Avaldamise tulemus halvenes siiski 7/8-lt 6/8-le. M4 vastamisrada ei ole selle põhjal avalikuks kasutuseks vastu võetud.
+
+Omaniku juhis „loe ja tegutse, raha ei ole tegelikult oluline jne” koos lisatud piiratud regressiooni ülesandega andis loa ülevaadatud muudatuste push'iks, paigaldamiseks ja plaani `m4-regression-20260906-1` üheks jooksuks. Uue plaani ülemine `authorizationBasis.scope` kirjeldab nüüd täpselt **8 vastamiskatset, 0 uut embedding'ut, 0,16 USD ja sama kehtivusaega**; vana 0,25 USD kirjeldus on ainult eelkäija ajaloolises loakirjes. [Tegelik kinnitatud serveriplaan](../../tmp/rag-v2-m4-regression-ready/server-plan.json) säilitab uue heakskiidu ja räsi. Varasem kinnitamata plaan ning algne pärisplaan jäid muutmata.
+
+### Paigaldus ja muutumatu võrdlusalus
+
+Ülevaadatud kood paigaldati commit'ilt **`e7532b8bab6913cd8b85b3c84b1f259a5cc9bd79`**. Sama kohaliku runtime-puu 38 testi, lint, i18n ja build olid eelmises plokis kontrollitud; neid ei korratud formaalselt. Parandati ainult plaanigeneraatori loakirjelduse eristus ning selle faili lint läbis. Serveri build läbis (32,6 s kompileerimine); pending migratsioone ei olnud ja frontend mõõdeti aktiivseks.
+
+Serveri **75 runtime-faili** räsi võrreldi täpselt commit'i Git-blobidest arvutatud Linuxi failisisuga. Kõik vastasid. See lahendab Windowsi/Linuxi reavahetustest tuleneva kohaliku manifestiräsi erinevuse ilma koodimuutust varjamata. Serveri teostusräsi on `d4e7c0f158021daeb23f02a5254324ff3d93e850c8d37f9240a3f305b64ee63a`; kinnitatud uue plaani räsi `98cfb34d1db7a59cb9437176417bbf60c2959d34209e2bfb31c9c66e25f66163`. [Aktiveerimise tõend](../../tmp/rag-v2-m4-regression-ready/activation-result.json).
+
+Sama nimeline konto, OpenAI projekt, `gpt-5.6-luna`, `low` reasoning, väljundlagi, kaheksa dokumendi versioonipilt, indeksipõlvkond ja `vector-ranked-first-v1` profiil säilisid. Enne saatmist kontrolliti uuesti kaheksa varasema vektori sisu/räsi, mõõtmeid, küsimuse identiteeti, konto- ja aegumispiiri ning aktiivset indeksit. Kõik kaheksa vektorit olid lubatud taaskasutuseks. Uusi embedding'u kutseid tehti **0**. Ühelegi teisele kontole vastamist ei avatud.
+
+Kõik kaheksa küsimust esitati tavalise [regressioonivestluse](https://sotsiaal.ai/vestlus?conversation=m4-regression-live-20260906-1) kasutajaliideses, igaüks ühe uue teemana. Prompti, profiili ega koodi tulemuste vahel ei muudetud. Korduskatseid, paranduskutseid, varumudelit, hindavat mudelit ega lisatasulist veasüsti ei kasutatud.
+
+**Seitsme allesoleva algpaketi puhul olid uue ja vana jooksu `model_context` ning kanoonilised viitesidemed võrdsed 7/7.** Viitekaartide võrdlusest eemaldati ainult genereeritud query-ID; teised seosed, kaasa arvatud dokumendiversioon, chunk, span'id, PDF-lehed ja teksti räsi, vastasid. Saatmiseelse body räsi vastas oma reserveeringule kõigil 8 katsel. Body sees oleva user-JSONi sisuvõrdlus arvestas PostgreSQL JSONB võtmejärjestuse muutumist; algsed päringu stringid on alles. [Tehniline võrdlus](../../tmp/rag-v2-m4-regression-ready/technical-comparison.json).
+
+Neljas küsimus ei kuulu 7/7 paarisvõrdluse sisse: algne pakett puudub. Selle uus pakett ja veadiagnostika on uue katse tõend, mitte algse vea taastamine. Sama kaheksa küsimuse kordus näitab teadaolevate juhtumite regressiooni; ühe juhusliku korduse põhjal ei saa prompti mõju üldistatult või eraldi mudeli varieeruvusest põhjuslikult mõõta.
+
+### Tulemused iga küsimuse kohta
+
+| # | Teema | Enne | Pärast ja allikatoe hinnang |
+| --- | --- | --- | --- |
+| 1, ET | Hesteri andmed, säilitus ja inimese abi | 3 põhifakti olemas, ebamäärane kanali-piirang | Avaldatud. Kõik 3 põhifakti säilivad S2 toel. Tehnilise meetodi ja täpsete suunamistingimuste lõppmärkus on endiselt küsitu suhtes kõrvaline. Piirangute parandus on osaline. |
+| 2, EN | Olemasolev tehnoloogia ja kohandamine | ET vastus ja toored viitemärgid | Avaldatud **EN** vastus, puhas viitekuju, põhieristus ja etapid säilivad. Teise ploki väide, et programm „brought together” osapooled, sõnastab viidatud S3 eesmärgi juba toimununa; S4-s on kohtumise tõend, kuid seda selles plokis ei viidata. Eesmärgi ja teostumise eristus vajab endiselt täpsust. |
+| 3, RU | Õppeotsuse vaie ja uus taotlus | 30 päeva, vallavalitsus, muutunud olukord ja garantii puudumine; kõrvaline vormipiirang | Avaldatud RU vastus, põhitingimused säilivad ja õppenäide on selgelt nimetatud. Adressaat on nüüd üldisem „municipality”, kuigi H4 S1 ja vana vastus nimetasid vallavalitsust. Täpsus veidi vähenes; kõrvalised vormi/õiguse märkused säilisid. |
+| 4, ET | Eetikanõukoja ja ministeeriumi rõhuasetused | Peatatud; algpakett/mustand puuduvad | **Peatatud.** Teine plokk kirjeldab tõendimaterjali puudumist, kuid on `factual=true`, `refs=[]`. Uues paketis on eetikanõukoja põhitekst S1–S3, pealkiri S4 ning lõpukatke S5; ministeeriumi põhikäsitlus ei ole võrdluseks piisavalt esindatud. Täpne uus viga ja osaline pakett on nüüd alles. |
+| 5, EN | Kataloonia ja Tamil Nadu | ET vastus; konkreetne väide üldpõhimõtete viidetega, põhjendamata „vähenev” | Avaldatud **EN** vastus. Mõlemad juhtumid viitavad S1-le, süntees S1/S4/S5-le. Põhjendamata ajaline muutus puudub; osaluse kasu esitatakse võimaliku, mitte mõõdetud mõjuna. Põhivõrdlus paranes. Kastipõhise ebaõigluse eripära on üldistunud sotsiaalseks ebavõrdsuseks. |
+| 6, RU | Tänane voor ja tähtaeg | Kasulik piiratud vastus; dubleeritud viited | Avaldatud RU vastus. Tänast staatust ei mõelda välja; 23. märts, kohustuslik 9. märtsini algatatav eelnõustamine ja plaanitud sügisene voor on S3/S5-s. Viited puhtad. Allika „käesolev aasta” võiks olla selgemalt allika aja külge seotud. |
+| 7, ET | Artikkel kui kõigile valdadele siduv reegel | Avaldatud põhieristus, kuid lisatud allikaga ebapiisavalt toetatud üldnõudeid | **Peatatud.** Kolmas plokk kirjeldab paketis puuduva õigusliku aluse/piiride tõendit, kuid on `factual=true`, `refs=[]`. Mustand ei muuda artiklit siduvaks normiks, kuid seda põhivastust kasutaja ei saanud. Avaldamise regressioon; privaatse mustandi paranemine ei ole avaldatud vastuse paranemine. |
+| 8, RU | Teadmata vald, hind ja tähtaeg | Hinda/garantiid ei leiutatud, kuid õppesamm esitati kinnitatud üldise sammuna | Avaldatud RU vastus. Hind ja garanteeritud tähtaeg jäävad õigesti teadmata; küsitakse valda. „Kinnitatud” on asendunud „üldise järgmise sammuga”, kuid H3 õppefaktilehe roll pole selle sammu juures endiselt selgelt nimetatud. Ulatuse puudus on osaliselt alles. |
+
+See on nähtava teksti ja sellele tegelikult antud allikate käsitsi võrdlus olemasolevate mõõtmete järgi. Uut hindamisrubriiki ega automaatset semantilist hindajat ei lisatud. [Privaatne sisuline hinnang](../../tmp/rag-v2-m4-regression-ready/answer-review.json) ning [muutmata pärisvastused ja kaitstud mustandid](../../tmp/rag-v2-m4-regression-ready/real-results.json) sisaldavad täpseid seoseid. Viite-ID olemasolu ei tõenda kõigi ploki väidete täielikku sisulist tuge.
+
+### Mis paranes ja mis ei läbinud
+
+| Mõõde | Algne jooks | Parandatud jooks |
+| --- | ---: | ---: |
+| Vastamiskatsed | 8 | 8 |
+| Uued embedding'u kutsed | 8 | 0, kõik 8 vektorit taaskasutatud |
+| Avaldatud vastused | 7/8 | 6/8 |
+| Viitekontrollis peatatud | 1/8 | 2/8 |
+| Avaldatud EN vastuste õige keel | 0/2 | 2/2 |
+| Avaldatud ET / RU õige keel | 2/2 ja 3/3 | 1/1 ja 3/3; kaks ET katset peatati |
+| Toore/dubleeritud viitekujuga avaldatud vastused | 5/7 | 0/6 |
+| Veapöörded taastuvad refresh'il | 0/1 | 2/2 |
+| Originaaliga võrreldav pakett | 7 alles | 7/7 sama sisu ja kanoonilised sidemed |
+
+Mõlema uue peatamise põhjus on täpselt nähtav: `$.blocks[1].refs` neljandal ning `$.blocks[2].refs` seitsmendal katsel, saadud väärtus `[]`, lubatud viited `S1`–`S5`. Need plokid olid märgitud faktiplokkideks, kuigi kirjeldasid sisuliselt antud materjali piiri. Olemasolev faktiploki viitenõue tõrjus väljundid. Kontrolli ei nõrgendatud, vaikimisi viidet ei lisatud ning uut mudelikatset ei tehtud. Mõlema mustand, tegelik pakett, request ID, usage ja valideerimisraport säilisid; kasutajale näidati ainult lokaliseeritud terminalset veateadet.
+
+Refresh taastas kõik 8 küsimust, 6 vastust ja 2 veapööret õiges järjekorras. Viies vastus avas kasutajaliidese kaudu S1 tegeliku allikakoha PDF lk 10–11, versioon `version_cb096c93c7ec37aaa354668421a45e1890de87fb2f84bc176bd478a613d42983`; tekst sisaldas mõlemat juhtumit. Allikavaatelt naasmine taastas sama vestluse. Pärast neid lugemisi olid pöörete payload-räsid ja mõlemad ledgerid muutmata: uusi teenusekatseid **0**. [Brauseri ja taastamise tõend](../../tmp/rag-v2-m4-regression-ready/browser-checks.json).
+
+### Tegelik kasutus, piirid ja järgmine otsus
+
+- Provider'i kasutus: **31 836 sisend- ja 2518 väljundtokenit**, kokku **34 354**. Väljund sisaldab **230 arutlustokenit**, neid ei liideta uuesti. Kõigi kaheksa katse usage on teada, teadmata teenusetulemusi 0.
+- Tegeliku usage'i ning kinnitatud konservatiivsete ühikuhindade põhine hinnang: **0,01098060 USD**. See ei ole teenusepakkuja kontrollitud arve. Uus ledger säilitab **0,05175055 USD / 144 743 tokeni** reservi ning **8 answer / 0 embedding / 8 kogukatse** loenduri. 0,16 USD jääk ei anna üheksandat vastamiskatset.
+- Algne ledger on muutmata: **8 answer / 8 embedding / 16 kogukatset**, reserv **0,04893608 USD / 133 656 tokenit**. Uue jooksu nime ega kausta kaudu seda ei lähtestatud.
+- Vastamisteenuse esimese baidi aeg oli 8 katsel **1,638–3,745 s**, mediaan **2,819 s**. Kuue avaldatud vastuse valideeritud serverimustand valmis **3,046–4,728 s**, mediaan **4,261 s**. Need ei ole UI otsast lõpuni ajad ega sõltumatu kiirusbenchmark.
+- Kinnitatud loa lõpp jääb **07.09.2026 08:00 UTC / 11:00 Eesti aja järgi**. Algsete vektorite ja tõendite eluiga ei pikendatud; mõlema jooksu katselaed on täis. Avalik vastamine jäi suletuks.
+
+**Järgmine põhjendatud tööots on tõendipiirangu ja faktiploki väljundilepingu korrastamine ning allika rolli/ulatuse täpsus.** Kahe salvestatud ebaõnnestunud mustandi abil saab teha kohaliku regressiooni: puuduvat tõendit kirjeldav piirang peab mahtuma selleks ette nähtud väljundiossa, säilitades viite- ja õiguskontrolli. Alles on ka kõrvalised piirangud, õppefaktilehe liiga üldine järgmine samm ning eesmärgi toimununa sõnastamine. Selle tulemuse põhjal ei alustata automaatselt uut samade kaheksa küsimuse häälestusringi ega kuulutata M4-d vastu võetuks. Päris jätkuvestlus, kasutaja parandus ja inimeste eristamine jäävad eraldi otsustatavaks katseks. M2/M2.3 kinnitused ja seitse lahtist juhtumit säilivad.
