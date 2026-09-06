@@ -154,6 +154,7 @@ function throttle(fn, waitMs) {
   return throttled;
 }
 export function useChatConversationState({
+  pilotEnabled = false,
   isRoomMode,
   roomId: _roomId,
   isGenerating,
@@ -186,7 +187,7 @@ export function useChatConversationState({
     if (!convId) return null;
     return `${storageKey}:messages:${convId}`;
   }, [convId, storageKey]);
-  const chatStore = useMemo(() => makeChatStorage(conversationStorageKey), [conversationStorageKey]);
+  const chatStore = useMemo(() => makeChatStorage(pilotEnabled ? null : conversationStorageKey), [conversationStorageKey, pilotEnabled]);
   const [messages, setMessages] = useState([]);
   const [hydratedConversationId, setHydratedConversationId] = useState(null);
   const [storedConversationHasMessages, setStoredConversationHasMessages] = useState(false);
@@ -438,7 +439,7 @@ export function useChatConversationState({
     hydrationAbortRef.current = ac;
     const isCurrent = () => hydrationGenerationRef.current.isCurrent(generation);
     try {
-      const r = await fetch(`/api/chat/run?convId=${encodeURIComponent(id)}`, {
+      const r = await fetch(pilotEnabled ? `/api/chat/pilot?format=chat&convId=${encodeURIComponent(id)}` : `/api/chat/run?convId=${encodeURIComponent(id)}`, {
         cache: "no-store",
         ...(ac ? { signal: ac.signal } : {})
       });
@@ -579,7 +580,7 @@ export function useChatConversationState({
       if (convIdRef.current !== id) return;
       setServerHydratedConversationId(id);
     }
-  }, [normalizeSources, setIsCrisis, shouldPreserveLocalMessages]);
+  }, [normalizeSources, setIsCrisis, shouldPreserveLocalMessages, pilotEnabled]);
   useEffect(() => {
     if (!convId) return;
     const cancelledRef = {

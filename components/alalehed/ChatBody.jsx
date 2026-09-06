@@ -394,6 +394,7 @@ function resolveCssLengthPx(value, contextNode = null) {
 }
 
 export default function ChatBody({
+  pilotMode = null,
   roomId = null,
   onBackHome = null,
   embedded = false,
@@ -1259,6 +1260,7 @@ export default function ChatBody({
     historyPayload,
     getLatestHelpWorkflowState
   } = useChatConversationState({
+    pilotEnabled: !!pilotMode,
     isRoomMode,
     roomId: effectiveRoomId,
     isGenerating: isGeneratingForSave,
@@ -2174,6 +2176,7 @@ export default function ChatBody({
     detach: detachChatStream,
     retryLast
   } = useChatStream({
+    pilotEnabled: !!pilotMode,
     convId,
     historyPayload,
     userRole,
@@ -2960,6 +2963,7 @@ export default function ChatBody({
   const chatContainerClassName = "chat-container";
   return <>
     <ChatBodyView
+      pilotMode={pilotMode}
       embedded={embedded}
       t={t}
       locale={locale}

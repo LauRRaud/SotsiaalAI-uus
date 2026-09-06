@@ -5,6 +5,7 @@ import { localizePath } from "@/lib/localizePath";
 import { createLatestRequestGate, withRequestTimeout } from "@/lib/client/latestRequestGate";
 import { buildIntentSignature, resolveIntentKey } from "@/lib/usage/intentKey";
 import { ensureConversationBeforeSend } from "@/lib/chat/conversationBootstrap";
+import { rememberPilotIntent, forgetPilotIntent } from '@/lib/chat/m4PilotIntent';
 
 function formatI18n(template, values) {
   if (!values) return template;
@@ -1253,7 +1254,11 @@ export function useChatStream(config) {
 
     if (!cfg.isRoomMode) {
       try {
-        await ensureConversationBeforeSend({
+        if (cfg.pilotEnabled) {
+          const ensured = await fetch('/api/chat/pilot', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'ensure', convId: cfg.convId }) });
+          if (!ensured.ok) throw createLocalizedError('m4Pilot.pending');
+        } else await ensureConversationBeforeSend({
           conversationId: cfg.convId,
           role: cfg.userRole,
           knownConversationIds: ensuredConversationIdsRef.current
@@ -1560,7 +1565,10 @@ export function useChatStream(config) {
         inputModality: options?.inputModality === "voice" ? "voice" : "text"
       })
     );
-    const clientTurnKey = chatIntentRef.current.key;
+    let clientTurnKey = chatIntentRef.current.key;
+    if (cfg.pilotEnabled) clientTurnKey = await rememberPilotIntent(window.sessionStorage, {
+      convId: cfg.convId, text, language: cfg.locale || 'et', key: clientTurnKey
+    });
 
     const turnStartedAtMs = Date.now();
     const clientTimeout = setTimeout(() => controller.abort(), 180000);
@@ -1602,9 +1610,12 @@ export function useChatStream(config) {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: {
+            ...(cfg.pilotEnabled ? { 'x-rag-pilot': '1', 'x-rag-pilot-format': 'chat' } : {}),
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({
+          body: JSON.stringify(cfg.pilotEnabled ? {
+            question: text, convId: cfg.convId, clientTurnKey, contextMode: 'new', language: cfg.locale || 'et'
+          } : {
             message: text,
             history: cfg.historyPayload,
             role: cfg.userRole,
@@ -1742,6 +1753,7 @@ export function useChatStream(config) {
           }));
 
           // Sama reegel mis voo rajal: lahendatud kavatsus vabastab võtme (SOL-CHAT-03).
+          if (cfg.pilotEnabled) forgetPilotIntent(window.sessionStorage, cfg.convId, clientTurnKey);
           chatIntentRef.current = null;
           dispatchHelpListingsRefresh(workflow);
           cfg.requestConversationsRefresh?.();

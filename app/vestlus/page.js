@@ -8,6 +8,8 @@ import ConversationDrawer from "@/components/alalehed/ConversationDrawer";
 import ChatSidebar from "@/components/ChatSidebar";
 import { redirect } from "next/navigation";
 import { localizePath } from "@/lib/localizePath";
+import { requireChatUser } from '@/lib/chat/routeServerUtils';
+import { readPilotConfig } from '@/lib/rag-v2/pilot/config';
 export async function generateMetadata() {
   const cookieStore = await cookies();
   const locale = getLocaleFromCookies(cookieStore);
@@ -38,11 +40,19 @@ export default async function Page({ searchParams }) {
   const emailVerifiedEntry = reason === "email-verified";
   const roomIdRaw = resolvedSearchParams?.roomId;
   const roomId = typeof roomIdRaw === "string" ? roomIdRaw.trim() || null : null;
+  let pilotMode = null;
+  if (!roomId && process.env.M4_PILOT_ENABLED === '1') {
+    const auth = await requireChatUser({ includeSession: true });
+    if (auth.ok && !auth.session?.authDegraded) {
+      try { pilotMode = (await readPilotConfig(auth.userId)).mode; } catch {}
+    }
+  }
   return <>
       <ConversationDrawer>
         <ChatSidebar />
       </ConversationDrawer>
       <ChatBody
+        pilotMode={pilotMode}
         roomId={roomId}
         requestLoginOnOpen={loginRequested || emailVerifiedEntry}
         emailVerifiedEntry={emailVerifiedEntry}

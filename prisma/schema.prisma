@@ -1561,10 +1561,37 @@ model ChatTurn {
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   ragAttempts  RagAttempt[]
+  m4Pilot      M4PilotTurn?
 
   @@unique([userId, clientTurnKey])
   @@index([conversationId, startedAt])
   @@index([status, updatedAt])
+}
+
+/// Private pilot content. Generic conversation messages contain only placeholders.
+model M4PilotTurn {
+  id         String   @id
+  chatTurnId String   @unique
+  pilotId    String
+  configHash String
+  inputHash  String
+  state      String
+  payload    Json
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  chatTurn   ChatTurn @relation(fields: [chatTurnId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@index([pilotId, state])
+}
+
+/// Content-free shared reservation totals survive conversation deletion and restarts.
+model M4PilotLedger {
+  id         String   @id
+  configHash String
+  totals     Json
+  updatedAt  DateTime @updatedAt
 }
 
 /// One immutable execution of a chat intent. No raw prompt, draft or source body.

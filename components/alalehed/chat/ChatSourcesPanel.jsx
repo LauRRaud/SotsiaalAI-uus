@@ -274,7 +274,7 @@ const ChatSourcesPanel = memo(function ChatSourcesPanel({
                             <a
                               key={`${src.key || idx}-url-${urlIdx}`}
                               href={url}
-                              target="_blank"
+                              target={src.sourceType === 'm4_pilot' || src.source_type === 'm4_pilot' ? '_self' : '_blank'}
                               rel="noreferrer"
                             >
                               {src.allUrls.length > 1

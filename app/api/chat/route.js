@@ -23,6 +23,10 @@ export async function POST(req) {
     limit: readChatRateLimit(process.env.CHAT_RATE_LIMIT_CHAT_POST_MAX, 24), windowMs
   });
   if (limited) return limited;
+  if (req.headers.get('x-rag-pilot') === '1') {
+    const { pilotPost } = await import('@/lib/chat/m4PilotServer');
+    return pilotPost(req);
+  }
   return NextResponse.json(ragRetiredPayload(), { status: 503, headers: CHAT_NO_STORE_HEADERS });
 }
 
